@@ -10,7 +10,10 @@ import { Exam } from 'src/exams/entities/exam.entity';
 import { BaseExam } from 'src/exams/interfaces/base-exam.interface';
 import { Institution } from 'src/institutions/entities/institution.entity';
 import { BaseInstitution } from 'src/institutions/interfaces/base-institution.interface';
-import { Question } from 'src/questions/entities/question.entity';
+import {
+  AnswerableQuestion,
+  Question,
+} from 'src/questions/entities/question.entity';
 import { BaseQuestion } from 'src/questions/interfaces/base-question.interface';
 import { RelationType } from 'src/shared/enums/relation-type.enum';
 import { Relation } from 'src/shared/interfaces/relation.interface';
@@ -156,6 +159,105 @@ export class SerializationService {
     );
   }
 
+  serializeAnswerableQuestionResult(
+    {
+      id,
+      code,
+      prompt,
+      correctIndex,
+      subjectId,
+      alternatives,
+      answerExplanation,
+      createdAt,
+      updatedAt,
+      illustration,
+      year,
+      institutionId,
+      boardId,
+      examId,
+      educationStage,
+      subject,
+      board,
+      institution,
+      exam,
+    }: BaseQuestion,
+    serializeRelations = false,
+  ) {
+    if (!id) {
+      throw new InternalServerErrorException(
+        `Missing values ${JSON.stringify({
+          id,
+          code,
+          prompt,
+          correctIndex,
+          subjectId,
+          alternatives,
+          answerExplanation,
+          createdAt,
+          updatedAt,
+          illustration,
+          year,
+          institutionId,
+          boardId,
+          examId,
+          educationStage,
+          subject,
+          board,
+          institution,
+          exam,
+        })}`,
+      );
+    }
+    return new AnswerableQuestion(
+      this.surrealIdToRegularUid(id),
+      Entity.QUESTIONS,
+      code,
+      prompt,
+      typeof subjectId === 'string'
+        ? this.surrealIdToRegularUid(subjectId)
+        : this.surrealIdToRegularUid(subjectId.id),
+      alternatives,
+      createdAt,
+      updatedAt,
+      illustration,
+      year,
+      institutionId
+        ? typeof institutionId === 'string'
+          ? this.surrealIdToRegularUid(institutionId)
+          : this.surrealIdToRegularUid(institutionId.id)
+        : undefined,
+      boardId
+        ? typeof boardId === 'string'
+          ? this.surrealIdToRegularUid(boardId)
+          : this.surrealIdToRegularUid(boardId.id)
+        : undefined,
+      examId
+        ? typeof examId === 'string'
+          ? this.surrealIdToRegularUid(examId)
+          : this.surrealIdToRegularUid(examId.id)
+        : undefined,
+      educationStage,
+      serializeRelations &&
+      (subject || (subjectId && typeof subjectId === 'object'))
+        ? this.serializeSubjectResult(
+            subject ? subject : (subjectId as BaseSubject),
+          )
+        : undefined,
+      serializeRelations && (board || (boardId && typeof boardId === 'object'))
+        ? this.serializeBoardResult(board ? board : (boardId as BaseBoard))
+        : undefined,
+      serializeRelations &&
+      (institution || (institutionId && typeof institutionId === 'object'))
+        ? this.serializeInstitutionResult(
+            institution ? institution : (institutionId as BaseInstitution),
+          )
+        : undefined,
+      serializeRelations && (exam || (examId && typeof examId === 'object'))
+        ? this.serializeExamResult(exam ? exam : (examId as BaseExam), false)
+        : undefined,
+    );
+  }
+
   serializeExamResult(
     {
       id,
@@ -169,6 +271,7 @@ export class SerializationService {
       boardId,
       institutionId,
       questions,
+      answerableQuestions,
       institution,
       board,
     }: BaseExam,
@@ -190,6 +293,11 @@ export class SerializationService {
       serializeRelations && questions && questions.length
         ? questions.map((q) =>
             this.serializeQuestionResult(q, serializeNestedRelations),
+          )
+        : undefined,
+      serializeRelations && answerableQuestions && answerableQuestions.length
+        ? answerableQuestions.map((q) =>
+            this.serializeAnswerableQuestionResult(q, serializeNestedRelations),
           )
         : undefined,
       serializeRelations && institution

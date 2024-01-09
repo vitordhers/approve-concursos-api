@@ -211,11 +211,13 @@ export class ExamsService implements OnModuleInit {
     );
     const query = `SELECT *, 
       (SELECT COUNT() as total  FROM ONLY questionsIds.* GROUP ALL) as count,
-      (SELECT * OMIT correctIndex, answerExplanation FROM questionsIds.* LIMIT ${limit} START ${startAt} FETCH boardId, subjectId, institutionId, examId) as questions 
+      (SELECT * OMIT correctIndex, answerExplanation FROM questionsIds.* LIMIT ${limit} START ${startAt} FETCH boardId, subjectId, institutionId, examId) as answerableQuestions 
       FROM ONLY ${examId}`;
     const results = await this.dbService.query<
       BaseExam & { count: { total: number } }
     >(query);
+
+    // console.log('@@@', inspect({ results }, { depth: null }));
 
     const data = results.map((r) =>
       this.serializationService.serializeExamResult(r, true, true),

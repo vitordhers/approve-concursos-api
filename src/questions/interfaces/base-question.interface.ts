@@ -12,7 +12,7 @@ export interface BaseQuestion extends BaseEntityInterface {
   prompt: string;
   subjectId: string | BaseSubject;
   alternatives: Alternative[];
-  answerExplanation: string;
+  answerExplanation?: string;
   correctIndex?: number;
   illustration?: string;
   year?: number;
