@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { Board } from 'src/boards/entities/board.entity';
 import { BaseBoard } from 'src/boards/interfaces/base-board.interface';
 import { Entity, ExtendedEntity } from 'src/db/enums/entity.enum';
@@ -33,6 +37,7 @@ export class SerializationService {
   }
 
   regularUidToSurrealId(entity: ExtendedEntity, uid: string) {
+    if (uid.includes(':')) return uid;
     return `${entity}:${uid}`;
   }
 
@@ -74,6 +79,31 @@ export class SerializationService {
     }: BaseQuestion,
     serializeRelations = false,
   ) {
+    if (!id) {
+      throw new InternalServerErrorException(
+        `Missing values ${JSON.stringify({
+          id,
+          code,
+          prompt,
+          correctIndex,
+          subjectId,
+          alternatives,
+          answerExplanation,
+          createdAt,
+          updatedAt,
+          illustration,
+          year,
+          institutionId,
+          boardId,
+          examId,
+          educationStage,
+          subject,
+          board,
+          institution,
+          exam,
+        })}`,
+      );
+    }
     return new Question(
       this.surrealIdToRegularUid(id),
       Entity.QUESTIONS,
@@ -143,6 +173,7 @@ export class SerializationService {
       board,
     }: BaseExam,
     serializeRelations = false,
+    serializeNestedRelations = false,
   ): Exam {
     return new Exam(
       this.surrealIdToRegularUid(id),
@@ -157,7 +188,9 @@ export class SerializationService {
       boardId ? this.surrealIdToRegularUid(boardId) : undefined,
       institutionId ? this.surrealIdToRegularUid(institutionId) : undefined,
       serializeRelations && questions && questions.length
-        ? questions.map((q) => this.serializeQuestionResult(q, false))
+        ? questions.map((q) =>
+            this.serializeQuestionResult(q, serializeNestedRelations),
+          )
         : undefined,
       serializeRelations && institution
         ? this.serializeInstitutionResult(institution)

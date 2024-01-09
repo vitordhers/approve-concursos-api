@@ -25,6 +25,7 @@ export class DbService implements OnModuleInit {
   private _db?: Surreal;
   private shouldRunMigrations =
     false || this.configService.get<string>('ENVIRONMENT') === 'production';
+
   get db() {
     return this._db;
   }
@@ -106,7 +107,7 @@ export class DbService implements OnModuleInit {
       });
     } catch (error) {
       this.logger.error(
-        '_connectAndSignIn error:',
+        '_connectAndSignIn error: ',
         inspect({ error }, { depth: null }),
       );
     }
@@ -295,11 +296,15 @@ export class DbService implements OnModuleInit {
 
   async search<T = any>(
     entity: Entity,
-    searchedIndex: string,
+    searchedIndex: string | string[],
     searchedValue: string,
   ): Promise<T[]> {
     try {
-      const query = `SELECT *, search::score(1) AS score FROM ${entity} WHERE ${searchedIndex} @1@ '${searchedValue}' ORDER BY score DESC;`;
+      const searchIndex = Array.isArray(searchedIndex)
+        ? searchedIndex.join(' OR ')
+        : searchedIndex;
+
+      const query = `SELECT *, search::score(1) AS score FROM ${entity} WHERE ${searchIndex} @1@ '${searchedValue}' ORDER BY score DESC;`;
       const results = await this.query<T>(query);
 
       if (!results || !results.length) {

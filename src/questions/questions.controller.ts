@@ -44,6 +44,12 @@ export class QuestionsController {
     return await this.questionsService.create(createQuestionDto);
   }
 
+  @UseGuards(AdminToken)
+  @Post('bulk')
+  async createBulk(@Body() createQuestionDtos: CreateQuestionDto[]) {
+    return await this.questionsService.createBulk(createQuestionDtos);
+  }
+
   @Get('validate-code/:code')
   async validateCode(@Param('code') code: string) {
     return await this.questionsService.validateCode(code);

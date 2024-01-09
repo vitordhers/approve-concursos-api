@@ -151,6 +151,81 @@ export class QuestionsService implements OnModuleInit {
     return this.serializationService.serializeQuestionResult(result[0]);
   }
 
+  async createBulk(dtos: CreateQuestionDto[]) {
+    let query = `BEGIN TRANSACTION;`;
+
+    dtos.forEach((dto) => {
+      const currentTimestamp = Date.now();
+
+      query += `CREATE questions SET 
+      code = '${dto.code}',
+      prompt = '${dto.prompt}',
+      correctIndex = ${dto.correctIndex},
+      subjectId = '${this.serializationService.regularUidToSurrealId(
+        Entity.SUBJECTS,
+        dto.subjectId,
+      )}',
+      alternatives = ${JSON.stringify(dto.alternatives)},
+      createdAt = ${currentTimestamp},
+      updatedAt = ${currentTimestamp}`;
+
+      if (dto.illustration) {
+        query += `, illustration = '${dto.illustration}'`;
+      }
+
+      if (dto.answerExplanation) {
+        query += `, answerExplanation = '${dto.answerExplanation}'`;
+      }
+
+      if (dto.year) {
+        query += `, year = ${dto.year}`;
+      }
+
+      if (dto.educationStage) {
+        query += `, educationStage = ${dto.educationStage}`;
+      }
+
+      if (dto.institutionId) {
+        query += `, institutionId = '${this.serializationService.regularUidToSurrealId(
+          Entity.INSTITUTIONS,
+          dto.institutionId,
+        )}'`;
+      }
+
+      if (dto.boardId) {
+        query += `, boardId = '${this.serializationService.regularUidToSurrealId(
+          Entity.BOARDS,
+          dto.boardId,
+        )}'`;
+      }
+
+      if (dto.examId) {
+        query += `, examId = '${this.serializationService.regularUidToSurrealId(
+          Entity.EXAMS,
+          dto.examId,
+        )}'`;
+      }
+
+      query += `;`;
+    });
+    query += `COMMIT TRANSACTION;`;
+
+    const results = await this.dbService.query<BaseQuestion | BaseQuestion[]>(
+      query,
+    );
+
+    if (!results || !results.length) {
+      throw new BadRequestException();
+    }
+
+    const data = results
+      .map((r) => (Array.isArray(r) ? r[0] : r))
+      .filter((r) => !!r.id)
+      .map((r) => this.serializationService.serializeQuestionResult(r));
+
+    return data;
+  }
+
   async paginate(startAt: number, limit: number) {
     const results = await this.dbService.paginate<BaseQuestion>(
       this.entity,
@@ -186,6 +261,7 @@ export class QuestionsService implements OnModuleInit {
     filters: Filters[],
     selectors: SelectorFilter[],
   ) {
+    // console.log('@@@', inspect({ filters, selectors }, { depth: null }));
     const whereClause = this.dbService.buildWhereConditionFromFilters(filters);
     const query = `BEGIN TRANSACTION;
     ${selectors
@@ -206,11 +282,11 @@ export class QuestionsService implements OnModuleInit {
 
     const results = await this.dbService.query(query);
 
-    // console.log('@@@@', { results });
+    // console.log('@@@@', inspect({ results }, { depth: null }));
 
-    const serializedResults = results.map((r) =>
-      this.serializationService.serializeQuestionResult(r, true),
-    );
+    const serializedResults = results
+      .filter((r) => !!r.id)
+      .map((r) => this.serializationService.serializeQuestionResult(r, true));
 
     // console.log('@@@@', { serializedResults });
 
@@ -270,7 +346,7 @@ export class QuestionsService implements OnModuleInit {
           this.entityRelations,
         )
       : await this.dbService.findOneByUid<BaseQuestion>(this.entity, uid);
-
+    if (!result) return;
     const question = this.serializationService.serializeQuestionResult(
       result,
       withRelations,

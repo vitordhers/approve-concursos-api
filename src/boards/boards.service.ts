@@ -115,6 +115,7 @@ export class BoardsService implements OnModuleInit {
   }
 
   async findOne(uid: string) {
+    uid = this.serializationService.regularUidToSurrealId(this.entity, uid);
     const result = await this.dbService.findOneByUid<BaseBoard>(
       this.entity,
       uid,

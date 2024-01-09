@@ -32,6 +32,26 @@ export class ExamsController {
     return await this.examsService.createAssessmentExam(createExamDto);
   }
 
+  @Get('list')
+  async paginateForUser(
+    @Query('start') start: string,
+    @Query('limit') limit: string,
+    @Query('type') _type: '0' | '1',
+  ) {
+    const type = Number(_type) as ExamType;
+    return await this.examsService.paginateWithRelations(type, +start, +limit);
+  }
+
+  @Get('search')
+  async search(@Query('query') query: string) {
+    return await this.examsService.search(query);
+  }
+
+  @Get('summary/:uid')
+  async get(@Param('uid') uid: string) {
+    return await this.examsService.getQuestionsSummary(uid);
+  }
+
   @Get('validate-code/:code')
   async validateCode(@Param('code') code: string) {
     return await this.examsService.validateCode(code);
@@ -45,21 +65,6 @@ export class ExamsController {
   ) {
     const type = Number(_type) as ExamType;
     return await this.examsService.paginate(type, +start, +limit);
-  }
-
-  @Get('list')
-  async paginateForUser(
-    @Query('start') start: string,
-    @Query('limit') limit: string,
-    @Query('type') _type: '0' | '1',
-  ) {
-    const type = Number(_type) as ExamType;
-    return await this.examsService.paginateWithRelations(type, +start, +limit);
-  }
-
-  @Get('summary/:uid')
-  async get(@Param('uid') uid: string) {
-    return await this.examsService.getQuestionsSummary(uid);
   }
 
   @Get(':examId/questions')

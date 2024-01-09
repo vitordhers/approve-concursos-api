@@ -119,6 +119,7 @@ export class InstitutionsService implements OnModuleInit {
       this.entity,
       uid,
     );
+    if (!result) return;
     return this.serializationService.serializeInstitutionResult(result);
   }
 

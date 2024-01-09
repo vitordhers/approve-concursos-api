@@ -26,7 +26,7 @@ import { RelationType } from 'src/shared/enums/relation-type.enum';
 export class ExamsService implements OnModuleInit {
   private logger = new Logger('ExamsService');
   private shouldRunMigrations =
-    true || this.configService.get<string>('ENVIRONMENT') === 'production';
+    false || this.configService.get<string>('ENVIRONMENT') === 'production';
 
   private listRelations: Relation[] = [
     {
@@ -211,16 +211,14 @@ export class ExamsService implements OnModuleInit {
     );
     const query = `SELECT *, 
       (SELECT COUNT() as total  FROM ONLY questionsIds.* GROUP ALL) as count,
-      (SELECT * OMIT correctIndex, answerExplanation FROM questionsIds.* LIMIT ${limit} START ${startAt}) as questions 
+      (SELECT * OMIT correctIndex, answerExplanation FROM questionsIds.* LIMIT ${limit} START ${startAt} FETCH boardId, subjectId, institutionId, examId) as questions 
       FROM ONLY ${examId}`;
-    // console.log('@@@', { query });
     const results = await this.dbService.query<
       BaseExam & { count: { total: number } }
     >(query);
-    // console.log('@@@', inspect({ results }, { depth: null }));
 
     const data = results.map((r) =>
-      this.serializationService.serializeExamResult(r, true),
+      this.serializationService.serializeExamResult(r, true, true),
     );
 
     return { total: results[0].count.total, data: data[0] };
@@ -260,8 +258,21 @@ export class ExamsService implements OnModuleInit {
       this.entity,
       uid,
     );
-
+    if (!result) return;
     return this.serializationService.serializeExamResult(result);
+  }
+
+  async search(searchedValue: string) {
+    const result = await this.dbService.search<BaseExam>(
+      this.entity,
+      ['name', 'code'],
+      searchedValue,
+    );
+    if (!result || !result.length) return [];
+    const data = result.map((r) =>
+      this.serializationService.serializeInstitutionResult(r),
+    );
+    return data;
   }
 
   async updateExam(uid: string, updateExamDto: UpdateExamDto) {

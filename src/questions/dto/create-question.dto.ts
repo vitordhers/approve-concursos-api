@@ -42,12 +42,11 @@ export class CreateQuestionDto {
   @ArrayNotEmpty()
   alternatives: Alternative[];
 
-  @IsDefined()
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @MinLength(5)
   @MaxLength(5000)
-  answerExplanation: string;
+  answerExplanation?: string;
 
   @IsOptional()
   @IsString()
