@@ -40,8 +40,8 @@ export class UploadService {
           throw new BadRequestException(`unsupported format ${file.mimetype}`);
       }
       const filename = `${id}.${extension}`;
-
-      const fullPath = `uploads/${filename}`;
+      const resourcePath = `uploads/${filename}`;
+      const fullPath = `client/${resourcePath}`;
 
       const directory = `uploads`;
       if (!fs.existsSync(directory)) {
@@ -53,7 +53,7 @@ export class UploadService {
       writableStream.write(file.buffer);
 
       writableStream.on('finish', () => {
-        resolve(fullPath);
+        resolve(resourcePath);
       });
 
       writableStream.on('error', (error) => {
