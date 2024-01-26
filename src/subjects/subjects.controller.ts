@@ -6,41 +6,44 @@ import {
   Patch,
   Param,
   Delete,
-  UseGuards,
   Query,
 } from '@nestjs/common';
-import { AdminToken } from 'src/auth/guards/admin-role.guard';
 import { SubjectsService } from './subjects.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
+import { UserRole } from 'src/shared/enums/user-role.enum';
+import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @Controller('subjects')
 export class SubjectsController {
   constructor(private readonly subjectsService: SubjectsService) {}
 
   @Post()
-  @UseGuards(AdminToken)
+  @Roles(UserRole.ADMIN)
   async create(@Body() createSubjectDto: CreateSubjectDto) {
     return await this.subjectsService.create(createSubjectDto);
   }
 
   @Get('search')
+  @Roles(UserRole.PAID_USER)
   async search(@Query('query') searchInput: string) {
     return await this.subjectsService.search(searchInput);
   }
 
   @Get()
+  @Roles(UserRole.ADMIN)
   async paginate(@Query('start') start: string, @Query('limit') limit: string) {
     return await this.subjectsService.paginate(+start, +limit);
   }
 
   @Get(':uid')
+  @Roles(UserRole.PAID_USER)
   async findOne(@Param('uid') uid: string) {
     return await this.subjectsService.findOne(uid);
   }
 
   @Patch(':uid')
-  @UseGuards(AdminToken)
+  @Roles(UserRole.ADMIN)
   async update(
     @Param('uid') uid: string,
     @Body() updateSubjectDto: UpdateSubjectDto,
@@ -49,7 +52,7 @@ export class SubjectsController {
   }
 
   @Delete(':uid')
-  @UseGuards(AdminToken)
+  @Roles(UserRole.ADMIN)
   async remove(@Param('uid') uid: string) {
     return await this.subjectsService.remove(uid);
   }

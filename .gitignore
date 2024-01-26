@@ -39,3 +39,5 @@ lerna-debug.log*
 *.pem
 uploads/*
 data
+client
+generate-key-scripts.ts

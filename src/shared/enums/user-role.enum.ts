@@ -1,4 +1,6 @@
 export enum UserRole {
+  NON_VALIDATED_USER,
+  VALIDATED_USER,
+  PAID_USER,
   ADMIN,
-  USER,
 }

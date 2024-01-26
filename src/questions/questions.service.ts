@@ -18,11 +18,21 @@ import { Relation } from 'src/shared/interfaces/relation.interface';
 import { RelationType } from 'src/shared/enums/relation-type.enum';
 import {
   Filters,
+  MultipleValuesFilter,
+  RangeValueFilter,
   SelectorFilter,
   SingleValueFilter,
 } from 'src/shared/interfaces/filters.interface';
-import { BaseSubject } from 'src/subjects/interfaces/base-subject.interface';
 import { CreateAnswerDto } from './dto/create-answer.dto';
+import {
+  QuestionFilter,
+  QuestionFilterQueryParams,
+  QuestionPrefilterQueryParams,
+} from 'src/shared/enums/question-filters.enum';
+import { FilterType } from 'src/shared/enums/filter-type.enum';
+import { EducationStage } from 'src/shared/enums/education-stage.enum';
+import { BaseSubject } from 'src/subjects/interfaces/base-subject.interface';
+import { AnswerableQuestion } from './entities/question.entity';
 
 @Injectable()
 export class QuestionsService implements OnModuleInit {
@@ -226,6 +236,24 @@ export class QuestionsService implements OnModuleInit {
     return data;
   }
 
+  async selectByIds(ids: string[]) {
+    const serializedIds = ids.map((i) =>
+      this.serializationService.regularUidToSurrealId(this.entity, i),
+    );
+
+    const orClauses = serializedIds.reduce((prev, id) => {
+      return [...prev, `id=${id}`];
+    }, [] as string[]);
+    const query = `SELECT * FROM ${this.entity} WHERE ${orClauses.join(
+      ' OR ',
+    )} FETCH subjectId, institutionId, boardId, examId;`;
+    const results = await this.dbService.query<BaseQuestion>(query);
+    const serializedResults = results.map((q) =>
+      this.serializationService.serializeAnswerableQuestionResult(q),
+    );
+    return serializedResults;
+  }
+
   async paginate(startAt: number, limit: number) {
     const results = await this.dbService.paginate<BaseQuestion>(
       this.entity,
@@ -238,13 +266,128 @@ export class QuestionsService implements OnModuleInit {
     return { total: results.total, data };
   }
 
-  async applyFirstFiltersAndPaginateSubjectsSummary(filters: Filters[]) {
+  private mapQuestionQueryParamFiltersToFilters(
+    queryParams: QuestionFilterQueryParams,
+  ) {
+    const filters: Filters[] = [];
+    const fetchConditionsSet = new Set<string>();
+
+    Object.keys(queryParams).forEach((key) => {
+      if (key.includes('institution')) {
+        fetchConditionsSet.add('institution');
+      }
+      if (key.includes('board')) {
+        fetchConditionsSet.add('board');
+      }
+      if (key.includes('subject')) {
+        fetchConditionsSet.add('subject');
+      }
+    });
+
+    Object.entries(queryParams).forEach(([key, value]) => {
+      switch (key) {
+        case QuestionFilter.year: {
+          const filter: SingleValueFilter = {
+            type: FilterType.SINGLE_VALUE,
+            key: 'year',
+            value: Number(value),
+          };
+          return filters.push(filter);
+        }
+        case QuestionFilter.institutionId: {
+          const filter: SingleValueFilter = {
+            type: FilterType.SINGLE_VALUE,
+            key: 'institutionId',
+            value: this.serializationService.regularUidToSurrealId(
+              Entity.INSTITUTIONS,
+              value,
+            ),
+          };
+          return filters.push(filter);
+        }
+        case QuestionFilter.educationStage: {
+          const filter: SingleValueFilter = {
+            type: FilterType.SINGLE_VALUE,
+            key: 'educationStage',
+            value: Number(value) as EducationStage,
+          };
+          return filters.push(filter);
+        }
+        case QuestionFilter.fromTo: {
+          const [from, to] = (value as string).split(',').map((v) => Number(v));
+          const filter: RangeValueFilter = {
+            type: FilterType.RANGE,
+            key: 'year',
+            from,
+            to,
+          };
+          return filters.push(filter);
+        }
+        case QuestionFilter.boardIdOR: {
+          const values = (value as string).split(',');
+          const filter: MultipleValuesFilter = {
+            type: FilterType.MULTIPLE_VALUES,
+            condition: 'OR',
+            key: 'boardId',
+            values: values.map((v) =>
+              this.serializationService.regularUidToSurrealId(Entity.BOARDS, v),
+            ),
+          };
+          return filters.push(filter);
+        }
+        case QuestionFilter.subjectIdOR: {
+          const values = (value as string).split(',');
+          const filter: MultipleValuesFilter = {
+            type: FilterType.MULTIPLE_VALUES,
+            condition: 'OR',
+            key: 'subjectId',
+            values: values.map((v) =>
+              this.serializationService.regularUidToSurrealId(
+                Entity.SUBJECTS,
+                v,
+              ),
+            ),
+          };
+          return filters.push(filter);
+        }
+        case QuestionFilter.subjectIdSELECTOR: {
+          const values = (value as string).split(',');
+          values.forEach((value) => {
+            const [limit, val] = (value as string).split('_');
+            if (!limit) return;
+            const filter: SelectorFilter = {
+              type: FilterType.SELECTOR,
+              condition: 'OR',
+              key: 'subjectId',
+              limit: Number(limit),
+              value: this.serializationService.regularUidToSurrealId(
+                Entity.SUBJECTS,
+                val,
+              ),
+              fetch: [...fetchConditionsSet],
+            };
+            return filters.push(filter);
+          });
+        }
+        default:
+          return;
+      }
+    });
+
+    return filters;
+  }
+
+  async applyFirstFiltersAndPaginateSubjectsSummary(
+    prefilterQuery: QuestionPrefilterQueryParams,
+  ) {
+    const filters = this.mapQuestionQueryParamFiltersToFilters(prefilterQuery);
     const whereClause = this.dbService.buildWhereConditionFromFilters(filters);
+
     const query = `SELECT subjectId, COUNT() as total FROM questions ${
       whereClause !== '' ? ' WHERE ' + whereClause : ''
     } GROUP BY subjectId FETCH subjectId`;
 
-    // console.log({ whereClause, query });
+    console.log({ filters, whereClause, query });
 
     const result = await this.dbService.query<{
       total: number;
@@ -257,16 +400,15 @@ export class QuestionsService implements OnModuleInit {
     }));
   }
 
-  async applyFiltersAndPaginateQuestions(
-    filters: Filters[],
-    selectors: SelectorFilter[],
-  ) {
-    // console.log('@@@', inspect({ filters, selectors }, { depth: null }));
+  async getQuestionsForFilters(filterQuery: QuestionPrefilterQueryParams) {
+    const filters = this.mapQuestionQueryParamFiltersToFilters(filterQuery);
     const whereClause = this.dbService.buildWhereConditionFromFilters(filters);
-    const query = `BEGIN TRANSACTION;
-    ${selectors
-      .map((selector) => {
-        const additionalAndClause = filters.length
+    const clauses = filters
+      .filter((f) => f.type === FilterType.SELECTOR)
+      .map((selector: SelectorFilter) => {
+        const additionalAndClause = filters.filter(
+          (f) => f.type !== FilterType.SELECTOR,
+        ).length
           ? `AND ${selector.key} = ${selector.value}`
           : `WHERE ${selector.key} = ${selector.value}`;
         const fetchesClause = selector.fetch.join(', ');
@@ -275,20 +417,25 @@ export class QuestionsService implements OnModuleInit {
           additionalAndClause
         } LIMIT ${selector.limit} FETCH ${fetchesClause};`;
       })
-      .join(';')}
+      .join(';');
+    const query = `BEGIN TRANSACTION;
+    ${clauses}
     COMMIT TRANSACTION;`;
 
-    // console.log('@@@@', { query });
+    // console.log('@@@', inspect({ filters, clauses, query }, { depth: null }));
 
     const results = await this.dbService.query(query);
 
-    // console.log('@@@@', inspect({ results }, { depth: null }));
+    const questionsResults = results.reduce((prev, result) => {
+      if (Array.isArray(result)) {
+        return [...prev, ...result];
+      }
+      [...prev, result];
+    }, []);
 
-    const serializedResults = results
-      .filter((r) => !!r.id)
-      .map((r) => this.serializationService.serializeQuestionResult(r, true));
-
-    // console.log('@@@@', { serializedResults });
+    const serializedResults = questionsResults.map((r) =>
+      this.serializationService.serializeAnswerableQuestionResult(r, true),
+    );
 
     return serializedResults;
   }
@@ -319,6 +466,51 @@ export class QuestionsService implements OnModuleInit {
 
   async countWhere(filter: SingleValueFilter) {
     return await this.dbService.count(this.entity, filter);
+  }
+
+  async searchByTerms(terms: string, start: number, limit: number) {
+    const query = `
+    BEGIN TRANSACTION;
+    SELECT COUNT() as total FROM questions WHERE prompt @1@ '${terms}' GROUP ALL;
+    SELECT *, search::score(1) AS score FROM questions WHERE prompt @1@ '${terms}' ORDER BY score DESC LIMIT ${limit} START ${start} FETCH subjectId, institutionId, boardId, examId;
+    COMMIT TRANSACTION;`;
+    const result =
+      await this.dbService.query<(BaseQuestion & { total: number })[]>(query);
+
+    const count = result.shift()[0];
+
+    // const result = await this.dbService.search<BaseQuestion>(
+    //   this.entity,
+    //   ['prompt'],
+    //   terms,
+    //   start,
+    //   limit,
+    //   ['subjectId', 'institutionId', 'boardId', 'examId'],
+    // );
+
+    if (!result || !result.length) return [];
+
+    const data: AnswerableQuestion[] = [];
+
+    result.forEach((res: BaseQuestion | BaseQuestion[]) => {
+      if (Array.isArray(res)) {
+        res.forEach((r) => {
+          const q = this.serializationService.serializeAnswerableQuestionResult(
+            r,
+            true,
+          );
+          data.push(q);
+        });
+        return;
+      }
+      const q = this.serializationService.serializeAnswerableQuestionResult(
+        res,
+        true,
+      );
+      data.push(q);
+    });
+
+    return { total: count.total, data };
   }
 
   async searchByCode(code: string) {

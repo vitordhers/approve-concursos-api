@@ -1,5 +1,0 @@
-#V2
-DEFINE NS questions
-DEFINE DATABASE dev
-USE NS questions
-DEFINE DATABASE dev

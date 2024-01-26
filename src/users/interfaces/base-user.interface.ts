@@ -10,4 +10,5 @@ export interface BaseUser extends BaseEntityInterface {
   cpf?: string;
   role: UserRole;
   loginProviders: LoginProvider[];
+  nextDueDate?: number;
 }

@@ -26,6 +26,11 @@ import { SerializationService } from 'src/serialization/serialization.service';
 import { BaseUser } from './interfaces/base-user.interface';
 import { BaseQuestion } from 'src/questions/interfaces/base-question.interface';
 import { CreateUserAdminDto } from './dto/create-user-admin.interface';
+import { EmailsService } from 'src/email/email.service';
+import { RedefinePasswordDto } from './dto/redefine-password.dto';
+import { BehaviorSubject } from 'rxjs';
+import { SseMessageEvent } from 'src/shared/interfaces/sse-message-event.interface';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -35,11 +40,21 @@ export class UsersService implements OnModuleInit {
 
   private entity = Entity.USERS;
 
+  private redefinePasswordSecret = this.configService.get<string>(
+    'PASSWORD_RECOVERY_TOKEN_SECRET',
+  );
+
+  private paymentListenerMap = new Map<
+    string,
+    BehaviorSubject<SseMessageEvent>
+  >();
+
   constructor(
     private readonly dbService: DbService,
     private readonly tokensService: TokenService,
     private readonly configService: ConfigService,
     private readonly serializationService: SerializationService,
+    private readonly emailsService: EmailsService,
   ) {}
 
   async onModuleInit() {
@@ -103,6 +118,15 @@ export class UsersService implements OnModuleInit {
     return result;
   }
 
+  async findOneByCpf(cpf: string): Promise<BaseUser | undefined> {
+    const result = await this.dbService.findOneWhere<BaseUser>(
+      this.entity,
+      `cpf == '${cpf}'`,
+    );
+
+    return result;
+  }
+
   generateNewCredentials(user: User) {
     const jwtPayload: JwtPayload = {
       id: user.id,
@@ -137,7 +161,7 @@ export class UsersService implements OnModuleInit {
       name,
       email,
       password,
-      cpf,
+      cpf: this.trimCpf(cpf),
       loginProviders: [LoginProvider.EMAIL],
       createdAt: currentTimestamp,
       updatedAt: currentTimestamp,
@@ -148,13 +172,13 @@ export class UsersService implements OnModuleInit {
     const newUser =
       this.serializationService.serializeUserResult(newUserResult);
 
-    return this.generateNewCredentials(newUser);
+    await this.emailsService.sendUserValidationEmail(newUser);
   }
 
   async create(createUserDto: CreateUserDto) {
     const newUserResult = await this.dbService.create<BaseUser>(this.entity, {
       ...createUserDto,
-      role: UserRole.USER,
+      role: UserRole.NON_VALIDATED_USER,
     });
 
     const [newUser] = newUserResult;
@@ -178,7 +202,7 @@ export class UsersService implements OnModuleInit {
       name,
       email,
       password,
-      cpf,
+      cpf: this.trimCpf(cpf),
       loginProviders: [LoginProvider.EMAIL],
       createdAt: currentTimestamp,
       updatedAt: currentTimestamp,
@@ -191,7 +215,11 @@ export class UsersService implements OnModuleInit {
     );
 
     const [newUser] = newUserResult;
-    return this.serializationService.serializeUserResult(newUser);
+    const user = this.serializationService.serializeUserResult(newUser);
+    if (user.role === UserRole.NON_VALIDATED_USER) {
+      await this.emailsService.sendUserValidationEmail(user);
+    }
+    return user;
   }
 
   async paginate(startAt: number, limit: number) {
@@ -253,8 +281,6 @@ export class UsersService implements OnModuleInit {
       }[];
     }>(query);
 
-    // console.log('@@@', inspect({ results }, { depth: null }));
-
     const data = results[0].answers.map((a) => ({
       ...a,
       question: this.serializationService.serializeQuestionResult(
@@ -267,20 +293,74 @@ export class UsersService implements OnModuleInit {
   }
 
   async findOne(uid: string) {
-    const result = await this.dbService.findOneByUid<BaseUser>(
+    const id = this.serializationService.regularUidToSurrealId(
       this.entity,
       uid,
     );
 
+    const result = await this.dbService.findOneByUid<BaseUser>(this.entity, id);
     if (!result) return;
     const user = this.serializationService.serializeUserResult(result);
     return user;
   }
 
-  async update(uid: string, updateUserDto: UpdateUserDto) {
+  async redefinePassword(redefinePasswordDto: RedefinePasswordDto) {
+    const { token, password: inputPassword } = redefinePasswordDto;
+
+    const { email } = this.tokensService.decodeToken<{ email: string }>(
+      token,
+      this.redefinePasswordSecret,
+    );
+
+    const baseUser = await this.findOneByEmail(email);
+
+    if (!baseUser) {
+      throw new BadRequestException();
+    }
+
+    if (baseUser.role === UserRole.ADMIN) {
+      throw new UnauthorizedException();
+    }
+
+    if (baseUser.role === UserRole.NON_VALIDATED_USER) {
+      return { nonValidatedUser: true };
+    }
+
+    const user = this.serializationService.serializeUserResult(baseUser);
+
+    const salt = await genSalt();
+    const hashedPassword = await hash(inputPassword, salt);
+    const password = salt + ':' + hashedPassword;
+    const currentTimestamp = new Date().getTime();
+
+    const updatedUserDto: UpdateUserDto = {
+      password,
+      updatedAt: currentTimestamp,
+    };
+
+    await this.update(user.id, updatedUserDto);
+
+    return { nonValidatedUser: false };
+  }
+
+  async update(
+    uid: string,
+    updateUserDto: UpdateUserDto,
+    requestingAdmin?: User,
+  ) {
     const { password: inputPassword } = updateUserDto;
 
-    const surrealId = this.serializationService.regularUidToSurrealId(
+    if (
+      requestingAdmin &&
+      uid === requestingAdmin.id &&
+      updateUserDto.role !== UserRole.ADMIN
+    ) {
+      throw new BadRequestException(
+        `Admin users can't revoke their own Admin privilege`,
+      );
+    }
+
+    const id = this.serializationService.regularUidToSurrealId(
       this.entity,
       uid,
     );
@@ -293,9 +373,23 @@ export class UsersService implements OnModuleInit {
       updateUserDto.password = password;
     }
 
+    if ('cpf' in updateUserDto && updateUserDto.cpf) {
+      updateUserDto.cpf = this.trimCpf(updateUserDto.cpf);
+    }
+
     const dto = { ...updateUserDto, updatedAt: currentTimestamp };
 
-    return this.dbService.update(this.entity, surrealId, { ...dto });
+    const updatedUser = await this.dbService.update<BaseUser>(this.entity, id, {
+      ...dto,
+    });
+
+    const user = this.serializationService.serializeUserResult(updatedUser);
+
+    if (user.role === UserRole.NON_VALIDATED_USER) {
+      await this.emailsService.sendUserValidationEmail(user);
+    }
+
+    return user;
   }
 
   async remove(uid: string) {
@@ -309,5 +403,60 @@ export class UsersService implements OnModuleInit {
     }
 
     return await this.dbService.delete(this.entity, surrealId);
+  }
+
+  setNewPaymentListener(user: User) {
+    const initialMessageEvent: SseMessageEvent = {
+      type: 'initial_payload',
+      data: { nextDueDate: user.nextDueDate },
+    };
+    const subject = new BehaviorSubject<SseMessageEvent>(initialMessageEvent);
+    const currentTimestamp = Date.now();
+    this.paymentListenerMap.set(`${user.id}_${currentTimestamp}`, subject);
+
+    return subject;
+  }
+
+  unsubscribeUserFromPaymentListener(userId: string) {
+    const keys = Array.from(this.paymentListenerMap.entries());
+    console.log({ keys });
+
+    if (!keys.length) return;
+
+    const entriesToUnsubscribe = keys.filter(([key]) => key.includes(userId));
+
+    console.log({ entriesToUnsubscribe });
+
+    if (!entriesToUnsubscribe.length) return;
+    entriesToUnsubscribe.forEach(([key, subject]) => {
+      const messageEvent: SseMessageEvent = {
+        type: 'unsubscribe',
+        data: 'refresh_access_token',
+      };
+      subject.next(messageEvent);
+      subject.complete();
+      subject.unsubscribe();
+      this.paymentListenerMap.delete(key);
+    });
+  }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  unsubscribePaymentListeners() {
+    const currentTimestamp = Date.now();
+
+    const entries = Array.from(this.paymentListenerMap.entries());
+    if (!entries.length) return;
+
+    entries.forEach(([key, subject]) => {
+      const timestamp = Number(key.split('_')[1]);
+      if (currentTimestamp - 1000 * 60 * 10 < timestamp) return;
+      subject.complete();
+      subject.unsubscribe();
+      this.paymentListenerMap.delete(key);
+    });
+  }
+
+  private trimCpf(cpf: string) {
+    return cpf.replace(/[-.]/g, '');
   }
 }

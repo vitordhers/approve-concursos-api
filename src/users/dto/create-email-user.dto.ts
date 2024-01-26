@@ -7,6 +7,7 @@ export class CreateEmailUserDto implements CreateUserDto {
   email: string;
   cpf?: string;
   loginProviders: LoginProvider[];
+  nextDueDate?: number;
   createdAt: number;
   updatedAt: number;
 }

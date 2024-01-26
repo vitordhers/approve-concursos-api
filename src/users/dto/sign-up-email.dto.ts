@@ -23,6 +23,7 @@ export class SignUpEmailDto {
 
   @IsDefined()
   @IsNotEmpty()
+  @IsString()
   @Length(8, 20)
   password: string;
 

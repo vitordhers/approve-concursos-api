@@ -20,8 +20,7 @@ export class GoogleRecaptchaV3Constraint
 }
 
 export function GoogleRecaptchaV3(validationOptions?: ValidationOptions) {
-  return (object: Object, propertyName: string) => {
-    console.log('@@@', { object });
+  return (object: object, propertyName: string) => {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,

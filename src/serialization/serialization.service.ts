@@ -54,6 +54,7 @@ export class SerializationService {
       baseUser.email,
       baseUser.role,
       baseUser.loginProviders,
+      baseUser.nextDueDate,
       baseUser.cpf,
     );
   }

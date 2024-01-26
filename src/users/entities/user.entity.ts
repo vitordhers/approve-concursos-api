@@ -14,6 +14,7 @@ export class User extends BaseEntity implements BaseUser {
     public email: string,
     public role: UserRole,
     public loginProviders: LoginProvider[],
+    public nextDueDate?: number,
     public cpf?: string,
   ) {
     super(id, entity, createdAt, updatedAt);

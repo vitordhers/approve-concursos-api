@@ -7,4 +7,6 @@ export enum Entity {
   INSTITUTIONS = 'institutions',
 }
 
-export type ExtendedEntity = Entity | 'database' | 'migrations';
+export type DatabaseEntity = 'database' | 'migrations';
+export type OrderEntity = 'orders' | 'payments' | 'charges';
+export type ExtendedEntity = Entity | DatabaseEntity | OrderEntity;

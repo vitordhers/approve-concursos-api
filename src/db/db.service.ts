@@ -181,7 +181,6 @@ export class DbService implements OnModuleInit {
     try {
       const id = this.serializationService.regularUidToSurrealId(entity, uid);
       const result = (await this._db.merge(id, data)) as T;
-      this.logger.log(`update result ${inspect({ entity, id, data, result })}`);
 
       return result as T;
     } catch (error) {
@@ -280,6 +279,28 @@ export class DbService implements OnModuleInit {
     }
   }
 
+  async findWhere<T = any>(
+    entity: ExtendedEntity,
+    where: string,
+  ): Promise<T[]> {
+    try {
+      const result = await this.query<T>(
+        `SELECT * FROM ${entity} WHERE ${where};`,
+      );
+
+      if (!result || !result.length) {
+        return;
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `findWhere error: ${inspect({ error }, { depth: null })}`,
+      );
+      throw new BadRequestException();
+    }
+  }
+
   async count(entity: Entity, filter: SingleValueFilter) {
     const whereClause = this.buildWhereConditionFromFilters([filter]);
 
@@ -304,7 +325,7 @@ export class DbService implements OnModuleInit {
         ? searchedIndex.join(' OR ')
         : searchedIndex;
 
-      const query = `SELECT *, search::score(1) AS score FROM ${entity} WHERE ${searchIndex} @1@ '${searchedValue}' ORDER BY score DESC;`;
+      const query = `SELECT *, search::score(1) AS score FROM ${entity} WHERE ${searchIndex} @1@ '${searchedValue}' ORDER BY score DESC`;
       const results = await this.query<T>(query);
 
       if (!results || !results.length) {

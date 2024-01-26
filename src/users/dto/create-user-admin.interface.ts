@@ -7,6 +7,7 @@ export interface CreateUserAdminDto {
   cpf?: string;
   password: string;
   loginProviders: LoginProvider[];
+  nextDueDate?: number;
   createdAt: number;
   updatedAt: number;
   role: UserRole;

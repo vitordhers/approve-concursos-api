@@ -1,7 +1,6 @@
 import {
   Controller,
   Post,
-  UseGuards,
   UseInterceptors,
   UploadedFiles,
   Body,
@@ -9,18 +8,19 @@ import {
 import { UploadImgDto } from './dto/upload-img.dto';
 import { UploadService } from './upload.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { AdminToken } from 'src/auth/guards/admin-role.guard';
 import fileFilter from './functions/file-filter.function';
 import { Multer } from 'multer';
 import { UploadImgFolderDto } from './dto/upload-img-folder.dto';
 import { MAX_UPLOAD_BYTES } from './config/max-upload-bytes.const';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { UserRole } from 'src/shared/enums/user-role.enum';
 
 @Controller('uploads')
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post()
-  @UseGuards(AdminToken)
+  @Roles(UserRole.ADMIN)
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -33,10 +33,7 @@ export class UploadController {
       },
     ),
   )
-  async uploadImg(
-    @UploadedFiles() uploadImgDto: UploadImgDto,
-    @Body() { subfolder }: UploadImgFolderDto,
-  ) {
+  async uploadImg(@UploadedFiles() uploadImgDto: UploadImgDto) {
     return await this.uploadService.uploadImg(uploadImgDto);
   }
 }

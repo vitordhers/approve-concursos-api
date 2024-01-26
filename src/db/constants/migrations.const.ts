@@ -47,6 +47,13 @@ const createCodeSearchIndexOnQuestions: MigrationBase = {
   query: `DEFINE INDEX codeSearchIndex ON TABLE ${Entity.QUESTIONS} COLUMNS code SEARCH ANALYZER simplePt BM25 HIGHLIGHTS;`,
 };
 
+const createPromptSearchIndexOnQuestions: MigrationBase = {
+  name: 'promptSearchIndex',
+  type: MigrationType.INDEX,
+  table: Entity.QUESTIONS,
+  query: `DEFINE INDEX promptSearchIndex ON TABLE ${Entity.QUESTIONS} COLUMNS prompt SEARCH ANALYZER simplePt BM25 HIGHLIGHTS;`,
+};
+
 const createCodeUniqueIndexOnExams: MigrationBase = {
   name: 'codeUniqueIndex',
   type: MigrationType.INDEX,
@@ -79,6 +86,7 @@ MIGRATIONS.set(Entity.BOARDS, [createNameIndexOnBoards]);
 MIGRATIONS.set(Entity.QUESTIONS, [
   createCodeUniqueIndexOnQuestions,
   createCodeSearchIndexOnQuestions,
+  createPromptSearchIndexOnQuestions,
 ]);
 
 MIGRATIONS.set(Entity.EXAMS, [

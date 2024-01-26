@@ -47,7 +47,31 @@ export class TokenService {
     });
   }
 
-  decodeToken(token: string, publicKey: string) {
-    return this.jwtService.verify(token, { publicKey });
+  createMailConfirmationToken(email: string) {
+    return this.jwtService.sign(
+      { email },
+      {
+        secret: this.configService.get<string>('MAIL_REQUESTS_TOKEN_SECRET'),
+        expiresIn: '7d',
+        algorithm: Algorithms.ES256,
+      },
+    );
+  }
+
+  createPasswordRecoveryToken(email: string) {
+    return this.jwtService.sign(
+      { email },
+      {
+        secret: this.configService.get<string>(
+          'PASSWORD_RECOVERY_TOKEN_SECRET',
+        ),
+        expiresIn: '10m',
+        algorithm: Algorithms.ES256,
+      },
+    );
+  }
+
+  decodeToken<T extends object>(token: string, secret: string) {
+    return this.jwtService.verify<T>(token, { secret });
   }
 }
