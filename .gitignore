@@ -38,6 +38,7 @@ lerna-debug.log*
 .env
 *.pem
 uploads/*
+questions.db
 data
 data/*
 client

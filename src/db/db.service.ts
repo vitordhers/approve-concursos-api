@@ -96,6 +96,11 @@ export class DbService implements OnModuleInit {
     const namespace = this.config.get<string>('SURREAL_DB_NS');
     const database = this.config.get<string>('SURREAL_DB_DATABASE');
 
+    this.logger.log('connection to local surreal db', {
+      namespace,
+      database,
+      url: 'ws://127.0.0.1:8000',
+    });
     try {
       await this.db.connect('ws://127.0.0.1:8000');
 
