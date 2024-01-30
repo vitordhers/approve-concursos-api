@@ -102,14 +102,21 @@ export class DbService implements OnModuleInit {
       url: 'ws://127.0.0.1:8000',
     });
     try {
-      await this.db.connect('ws://127.0.0.1:8000');
+      const result = await this.db.connect('ws://127.0.0.1:8000');
+      this.logger.log(
+        `connection works: ${inspect({ result }, { depth: null })}`,
+      );
 
-      await this.db.signin({
+      const signInResult = await this.db.signin({
         username,
         password,
         namespace,
         database,
       });
+
+      this.logger.log(
+        `db signIn works: ${inspect({ signInResult }, { depth: null })}`,
+      );
     } catch (error) {
       this.logger.error(
         '_connectAndSignIn error: ',
