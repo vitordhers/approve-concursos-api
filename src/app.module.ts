@@ -21,6 +21,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 
+console.log({ __dirname });
 @Module({
   imports: [
     ServeStaticModule.forRoot({
