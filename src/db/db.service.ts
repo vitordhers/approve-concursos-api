@@ -96,27 +96,25 @@ export class DbService implements OnModuleInit {
     const namespace = this.config.get<string>('SURREAL_DB_NS');
     const database = this.config.get<string>('SURREAL_DB_DATABASE');
 
-    this.logger.log('connection to local surreal db', {
-      namespace,
-      database,
-      url: 'ws://127.0.0.1:8000',
-    });
+    this.logger.log(
+      `Connecting to local Surrealdb ${inspect({
+        namespace,
+        database,
+        url: 'ws://127.0.0.1:8000',
+      })}`,
+    );
     try {
-      const result = await this.db.connect('ws://127.0.0.1:8000');
-      this.logger.log(
-        `connection works: ${inspect({ result }, { depth: null })}`,
-      );
+      await this.db.connect('ws://127.0.0.1:8000');
+      this.logger.log(`Surrealdb connection works`);
 
-      const signInResult = await this.db.signin({
+      await this.db.signin({
         username,
         password,
         namespace,
         database,
       });
 
-      this.logger.log(
-        `db signIn works: ${inspect({ signInResult }, { depth: null })}`,
-      );
+      this.logger.log(`Surrealdb signIn works`);
     } catch (error) {
       this.logger.error(
         '_connectAndSignIn error: ',
@@ -403,8 +401,8 @@ export class DbService implements OnModuleInit {
     SELECT count() as total FROM ${entity} ${
       filterClause ? 'WHERE ' + filterClause : ''
     } GROUP ALL;
-    SELECT *, ${
-      relationsSelectors.length ? relationsSelectors.join(', ') : ''
+    SELECT *${
+      relationsSelectors.length ? ', ' + relationsSelectors.join(', ') : ''
     } FROM ${entity} ${
       filterClause ? 'WHERE ' + filterClause : ''
     } ORDER BY updatedAt DESC LIMIT ${limit} START ${startAt};

@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { KiwifyOrderDto } from './kiwify/interfaces/kiwify-order.dto';
 import { createHmac } from 'crypto';
 import { ConfigService } from '@nestjs/config';
@@ -14,20 +20,118 @@ import { inspect } from 'util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Entity } from 'src/db/enums/entity.enum';
 import { BaseUser } from 'src/users/interfaces/base-user.interface';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
+import { KiwifySalesPaginationResponse } from './interface/paginate-sales.interface';
+import { KiwifySaleDetail } from './interface/sale-detail.interface';
 
 @Injectable()
-export class KiwifyService {
+export class KiwifyService implements OnModuleInit {
   private logger = new Logger('KiwifyService');
-  approvedToken = this.configService.get<string>('KIWIFY_WEBHOOK_TOKEN');
+  private approvedToken = this.configService.get<string>(
+    'KIWIFY_WEBHOOK_TOKEN',
+  );
+
+  private apiToken?: { accessToken: string; validUntil: number };
+
+  private baseUrl = this.configService.get<string>('KIWIFY_BASE_URL') + '/v1';
+  private clientId = this.configService.get<string>('KIWIFY_CLIENT_ID');
+  private clientSecret = this.configService.get<string>('KIWIFY_CLIENT_SECRET');
+  private accountId = this.configService.get<string>('KIWIFY_ACCOUNT_ID');
 
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
     private readonly serializationService: SerializationService,
     private readonly dbService: DbService,
+    private readonly http: HttpService,
   ) {}
 
-  checkKiwifySignatureIsValid(
+  async onModuleInit() {
+    await this.generateAccessToken();
+  }
+
+  private async generateAccessToken() {
+    if (!this.clientId || !this.clientSecret) return;
+    const tokenResult = await firstValueFrom(
+      this.http.post<{
+        access_token: string;
+        expires_in: number;
+        scope: string;
+        token_type: 'Bearer';
+      }>(
+        `${this.baseUrl}/oauth/token`,
+        {
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
+        },
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      ),
+    );
+
+    const data = tokenResult.data;
+
+    if (!data) {
+      throw new InternalServerErrorException();
+    }
+    const currentTimestamp = new Date().getTime();
+    this.apiToken = {
+      accessToken: data.access_token,
+      validUntil: currentTimestamp + data.expires_in,
+    };
+    this.logger.log(`Generated Kiwify Token ${inspect(this.apiToken)}`);
+  }
+
+  private async getAccessToken() {
+    const currentTimestamp = new Date().getTime();
+    if (!this.apiToken || this.apiToken.validUntil <= currentTimestamp) {
+      await this.generateAccessToken();
+    }
+    return this.apiToken.accessToken;
+  }
+
+  private async paginateLastHourSales() {
+    const startDate = new Date();
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+    const accessToken = await this.getAccessToken();
+    const result = await firstValueFrom(
+      this.http.get<KiwifySalesPaginationResponse>(
+        `${this.baseUrl}/sales?status=paid&start_date=${startDate.toISOString()}&end_date=${endDate.toISOString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'x-kiwify-account-id': this.accountId,
+          },
+        },
+      ),
+    );
+
+    if (!result || !result.data || !result.data.data.length) return;
+
+    const lastHourSales = result.data.data;
+
+    for (const sale of lastHourSales) {
+      await this.checkSale(sale.id);
+    }
+  }
+
+  private async checkSale(saleId: string) {
+    try {
+      const accessToken = await this.getAccessToken();
+      const result = await firstValueFrom(
+        this.http.get<KiwifySaleDetail>(`${this.baseUrl}/sales/${saleId}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'x-kiwify-account-id': this.accountId,
+          },
+        }),
+      );
+
+      if (!result || !result.data) return;
+    } catch (error) {}
+  }
+
+  private checkKiwifySignatureIsValid(
     orderDto: KiwifyOrderDto,
     signature: string,
     secret: string,
@@ -130,7 +234,7 @@ export class KiwifyService {
     const orderId = order ? `'${order.id}'` : '$order_id';
 
     if (!order) {
-      // insert order
+      // new order
       order = {
         id: orderId,
         providerId: providerOrderId,

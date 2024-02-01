@@ -234,7 +234,14 @@ export class UsersService implements OnModuleInit {
     return { total: results.total, data };
   }
 
-  async getOverallPerformance(userId: string) {
+  async getOverallPerformance(userId: string): Promise<{
+    count: {
+      total: number;
+    };
+    correct: {
+      total: number;
+    };
+  }> {
     const serializedUserId = this.serializationService.regularUidToSurrealId(
       this.entity,
       userId,
@@ -242,20 +249,26 @@ export class UsersService implements OnModuleInit {
 
     const query = `BEGIN TRANSACTION;
     SELECT 
-    (SELECT COUNT() as total FROM ONLY ->answered->questions GROUP ALL) as count,
-    (SELECT COUNT(->questions.correctIndex = [answeredAlternativeIndex]) as total FROM ONLY ->answered GROUP ALL) as correct
+    (SELECT COUNT() as total FROM ->answered->questions GROUP ALL) as count,
+    (SELECT COUNT(->questions.correctIndex = [answeredAlternativeIndex]) as total FROM ->answered GROUP ALL) as correct
     FROM ONLY ${serializedUserId};
     COMMIT TRANSACTION;`;
 
-    // console.log('@@@', { query });
-
     const results = await this.dbService.query<{
-      count: { total: number };
-      correct: { total: number };
+      count: { total: number }[];
+      correct: { total: number }[];
     }>(query);
 
-    // console.log('@@@', { results });
-    return results[0];
+    if (!results.length) {
+      return { count: { total: 0 }, correct: { total: 0 } };
+    }
+
+    const [result] = results;
+
+    return {
+      count: { total: result?.count[0]?.total || 0 },
+      correct: { total: result?.correct[0]?.total || 0 },
+    };
   }
 
   async getAnswersHistory(userId: string, startAt: number, limit: number) {

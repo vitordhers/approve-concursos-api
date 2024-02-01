@@ -5,6 +5,7 @@ import { SerializationModule } from 'src/serialization/serialization.module';
 import { EmailsModule } from 'src/email/email.module';
 import { KiwifyService } from './kiwify.service';
 import { UsersModule } from 'src/users/users.module';
+import { HttpModule } from '@nestjs/axios';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { UsersModule } from 'src/users/users.module';
     SerializationModule,
     EmailsModule,
     UsersModule,
+    HttpModule,
   ],
   providers: [KiwifyService],
   exports: [KiwifyService],
