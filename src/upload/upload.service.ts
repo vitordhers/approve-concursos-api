@@ -75,7 +75,7 @@ export class UploadService {
       return new Promise((resolve, reject) => {
         fs.access(clientFilePath, fs.constants.F_OK, (err) => {
           if (err) {
-            console.error(`File ${clientFilePath} does not exist`);
+            console.error(`File at ${clientFilePath} does not exist`, err);
             return resolve();
           }
           fs.unlink(clientFilePath, (error) => {
