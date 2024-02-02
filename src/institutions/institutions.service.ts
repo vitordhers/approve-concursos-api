@@ -137,36 +137,29 @@ export class InstitutionsService implements OnModuleInit {
   }
 
   async update(uid: string, { name, img, thumb }: UpdateInstitutionDto) {
-    // const currentInstitution = await this.findOne(uid);
+    const currentInstitution = await this.findOne(uid);
 
-    // if (!currentInstitution) {
-    //   throw new BadRequestException(`institution with id ${uid} doesn't exist`);
-    // }
+    if (!currentInstitution) {
+      throw new BadRequestException(`institution with id ${uid} doesn't exist`);
+    }
 
-    // let updatedImg: string | undefined = currentInstitution.img;
-    // if (img) {
-    //   // if (currentInstitution.img) {
-    //   //   await this.uploadService.deleteFile(currentInstitution.img);
-    //   // }
-    //   updatedImg = img;
-    // }
+    let updatedImg: string | undefined = currentInstitution.img;
+    if (currentInstitution.img && img !== currentInstitution.img) {
+      await this.uploadService.deleteFile(currentInstitution.img);
+      updatedImg = img;
+    }
 
-    // let updatedThumb: string | undefined = currentInstitution.thumb;
-    // if (thumb) {
-    //   // if (currentInstitution.thumb) {
-    //   //   await this.uploadService.deleteFile(currentInstitution.thumb);
-    //   // }
-    //   updatedThumb = thumb;
-    // }
-
-    // const updatedName = name || currentInstitution.name;
+    let updatedThumb: string | undefined = currentInstitution.thumb;
+    if (currentInstitution.thumb && thumb !== currentInstitution.thumb) {
+      await this.uploadService.deleteFile(currentInstitution.thumb);
+      updatedThumb = thumb;
+    }
 
     const currentTimestamp = Date.now();
-
     const updatedInstitution: BaseInstitution = {
       name,
-      img,
-      thumb,
+      img: updatedImg,
+      thumb: updatedThumb,
       updatedAt: currentTimestamp,
     };
 
@@ -183,12 +176,12 @@ export class InstitutionsService implements OnModuleInit {
     if (!toBeDeletedInstitution) {
       throw new BadRequestException(`Institution with id ${uid} doesn't exist`);
     }
-    // if (toBeDeletedInstitution.img) {
-    //   await this.uploadService.deleteFile(toBeDeletedInstitution.img);
-    // }
-    // if (toBeDeletedInstitution.thumb) {
-    //   await this.uploadService.deleteFile(toBeDeletedInstitution.thumb);
-    // }
+    if (toBeDeletedInstitution.img) {
+      await this.uploadService.deleteFile(toBeDeletedInstitution.img);
+    }
+    if (toBeDeletedInstitution.thumb) {
+      await this.uploadService.deleteFile(toBeDeletedInstitution.thumb);
+    }
     await this.dbService.delete(this.entity, uid);
   }
 }

@@ -137,36 +137,29 @@ export class BoardsService implements OnModuleInit {
   }
 
   async update(uid: string, { name, img, thumb }: UpdateBoardDto) {
-    // const currentBoard = await this.findOne(uid);
+    const currentBoard = await this.findOne(uid);
 
-    // if (!currentBoard) {
-    //   throw new BadRequestException(`voard with id ${uid} doesn't exist`);
-    // }
+    if (!currentBoard) {
+      throw new BadRequestException(`board with id ${uid} doesn't exist`);
+    }
 
-    // let updatedImg: string | undefined = currentBoard.img;
-    // if (img) {
-    //   // if (currentBoard.img) {
-    //   //   await this.uploadService.deleteFile(currentBoard.img);
-    //   // }
-    //   updatedImg = img;
-    // }
+    let updatedImg: string | undefined = currentBoard.img;
+    if (currentBoard.img && img !== currentBoard.img) {
+      await this.uploadService.deleteFile(currentBoard.img);
+      updatedImg = img;
+    }
 
-    // let updatedThumb: string | undefined = currentBoard.thumb;
-    // if (thumb) {
-    //   // if (currentBoard.thumb) {
-    //   //   await this.uploadService.deleteFile(currentBoard.thumb);
-    //   // }
-    //   updatedThumb = thumb;
-    // }
-
-    // const updatedName = name || currentBoard.name;
+    let updatedThumb: string | undefined = currentBoard.thumb;
+    if (currentBoard.thumb && thumb !== currentBoard.thumb) {
+      await this.uploadService.deleteFile(currentBoard.thumb);
+      updatedThumb = thumb;
+    }
 
     const currentTimestamp = Date.now();
-
     const updatedBoard: BaseBoard = {
       name,
-      img,
-      thumb,
+      img: updatedImg,
+      thumb: updatedThumb,
       updatedAt: currentTimestamp,
     };
 
@@ -183,12 +176,12 @@ export class BoardsService implements OnModuleInit {
     if (!toBeDeletedBoard) {
       throw new BadRequestException(`Board with id ${uid} doesn't exist`);
     }
-    // if (toBeDeletedBoard.img) {
-    //   await this.uploadService.deleteFile(toBeDeletedBoard.img);
-    // }
-    // if (toBeDeletedBoard.thumb) {
-    //   await this.uploadService.deleteFile(toBeDeletedBoard.thumb);
-    // }
+    if (toBeDeletedBoard.img) {
+      await this.uploadService.deleteFile(toBeDeletedBoard.img);
+    }
+    if (toBeDeletedBoard.thumb) {
+      await this.uploadService.deleteFile(toBeDeletedBoard.thumb);
+    }
     await this.dbService.delete(this.entity, uid);
   }
 }

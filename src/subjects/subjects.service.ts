@@ -138,36 +138,29 @@ export class SubjectsService implements OnModuleInit {
   }
 
   async update(uid: string, { name, img, thumb }: UpdateSubjectDto) {
-    // const currentSubject = await this.findOne(uid);
+    const currentSubject = await this.findOne(uid);
 
-    // if (!currentSubject) {
-    //   throw new BadRequestException(`subject with id ${uid} doesn't exist`);
-    // }
+    if (!currentSubject) {
+      throw new BadRequestException(`subject with id ${uid} doesn't exist`);
+    }
 
-    // let updatedImg: string | undefined = currentSubject.img;
-    // if (img) {
-    //   // if (currentSubject.img) {
-    //   //   await this.uploadService.deleteFile(currentSubject.img);
-    //   // }
-    //   updatedImg = img;
-    // }
+    let updatedImg: string | undefined = currentSubject.img;
+    if (currentSubject.img && img !== currentSubject.img) {
+      await this.uploadService.deleteFile(currentSubject.img);
+      updatedImg = img;
+    }
 
-    // let updatedThumb: string | undefined = currentSubject.thumb;
-    // if (thumb) {
-    //   // if (currentSubject.thumb) {
-    //   //   await this.uploadService.deleteFile(currentSubject.thumb);
-    //   // }
-    //   updatedThumb = thumb;
-    // }
-
-    // const updatedName = name || currentSubject.name;
+    let updatedThumb: string | undefined = currentSubject.thumb;
+    if (currentSubject.thumb && thumb !== currentSubject.thumb) {
+      await this.uploadService.deleteFile(currentSubject.thumb);
+      updatedThumb = thumb;
+    }
 
     const currentTimestamp = Date.now();
-
     const updatedSubject: BaseSubject = {
       name,
-      img,
-      thumb,
+      img: updatedImg,
+      thumb: updatedThumb,
       updatedAt: currentTimestamp,
     };
 

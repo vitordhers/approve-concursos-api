@@ -33,6 +33,7 @@ import { FilterType } from 'src/shared/enums/filter-type.enum';
 import { EducationStage } from 'src/shared/enums/education-stage.enum';
 import { BaseSubject } from 'src/subjects/interfaces/base-subject.interface';
 import { AnswerableQuestion } from './entities/question.entity';
+import { UploadService } from 'src/upload/upload.service';
 
 @Injectable()
 export class QuestionsService implements OnModuleInit {
@@ -67,6 +68,7 @@ export class QuestionsService implements OnModuleInit {
     private readonly dbService: DbService,
     private readonly configService: ConfigService,
     private readonly serializationService: SerializationService,
+    private readonly uploadService: UploadService,
   ) {}
 
   async onModuleInit() {
@@ -562,10 +564,24 @@ export class QuestionsService implements OnModuleInit {
       educationStage,
     }: UpdateQuestionDto,
   ) {
+    const currentQuestion = await this.findOne(uid, false);
+    if (!currentQuestion) {
+      throw new BadRequestException(`question with id ${uid} doesn't exist`);
+    }
+
+    let updatedIllustration = currentQuestion.illustration;
+    if (
+      currentQuestion.illustration &&
+      currentQuestion.illustration !== illustration
+    ) {
+      await this.uploadService.deleteFile(currentQuestion.illustration);
+      updatedIllustration = illustration;
+    }
+
     const currentTimestamp = Date.now();
     const updatedQuestion: BaseQuestion = {
       prompt,
-      illustration,
+      illustration: updatedIllustration,
       alternatives,
       answerExplanation,
       correctIndex,
@@ -593,12 +609,10 @@ export class QuestionsService implements OnModuleInit {
     if (!toBeDeletedQuestion) {
       throw new BadRequestException(`Institution with id ${uid} doesn't exist`);
     }
-    // if (toBeDeletedInstitution.img) {
-    //   await this.uploadService.deleteFile(toBeDeletedInstitution.img);
-    // }
-    // if (toBeDeletedInstitution.thumb) {
-    //   await this.uploadService.deleteFile(toBeDeletedInstitution.thumb);
-    // }
+    if (toBeDeletedQuestion.illustration) {
+      await this.uploadService.deleteFile(toBeDeletedQuestion.illustration);
+    }
+
     await this.dbService.delete(this.entity, uid);
   }
 
@@ -621,7 +635,6 @@ export class QuestionsService implements OnModuleInit {
       out: string;
     }>(query);
 
-    // console.log('@@@', { results });
     return results[0];
   }
 }
