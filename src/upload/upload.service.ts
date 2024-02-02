@@ -70,7 +70,7 @@ export class UploadService {
   }
 
   deleteFile(filePath: string): Promise<void> {
-    const clientFilePath = `../client/assets/${filePath}`;
+    const clientFilePath = `../client/${filePath}`;
     try {
       return new Promise((resolve, reject) => {
         fs.access(clientFilePath, fs.constants.F_OK, (err) => {
