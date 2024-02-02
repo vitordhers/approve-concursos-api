@@ -70,24 +70,23 @@ export class UploadService {
   }
 
   deleteFile(filePath: string): Promise<void> {
-    const clientsFilePath = `clients/assets/${filePath}`;
+    const clientFilePath = `../client/assets/${filePath}`;
     try {
       return new Promise((resolve, reject) => {
-        fs.access(clientsFilePath, fs.constants.F_OK, (err) => {
+        fs.access(clientFilePath, fs.constants.F_OK, (err) => {
           if (err) {
-            console.error(`File ${filePath} does not exist`);
-            resolve();
-          } else {
-            fs.unlink(clientsFilePath, (error) => {
-              if (error) {
-                this.logger.error(
-                  `deleteFile error: ${inspect({ error }, { depth: null })}`,
-                );
-                reject(error);
-              }
-              resolve();
-            });
+            console.error(`File ${clientFilePath} does not exist`);
+            return resolve();
           }
+          fs.unlink(clientFilePath, (error) => {
+            if (error) {
+              this.logger.error(
+                `deleteFile error: ${inspect({ error }, { depth: null })}`,
+              );
+              return reject(error);
+            }
+            resolve();
+          });
         });
       });
     } catch (error) {
