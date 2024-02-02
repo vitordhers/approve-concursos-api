@@ -40,12 +40,14 @@ export class UploadService {
           throw new BadRequestException(`unsupported format ${file.mimetype}`);
       }
       const filename = `${id}.${extension}`;
-      const resourcePath = `uploads/${filename}`;
+      const resourceDirectory = `client/assets/uploads/`;
+      const resourcePath = `assets/uploads/${filename}`;
       const fullPath = `client/${resourcePath}`;
 
-      const directory = `uploads`;
-      if (!fs.existsSync(directory)) {
-        fs.mkdirSync(directory, { recursive: true });
+      console.log({ filename, resourceDirectory, resourcePath, fullPath });
+
+      if (!fs.existsSync(resourceDirectory)) {
+        fs.mkdirSync(resourceDirectory, { recursive: true });
       }
 
       const writableStream = fs.createWriteStream(fullPath);
@@ -68,16 +70,24 @@ export class UploadService {
   }
 
   deleteFile(filePath: string): Promise<void> {
+    const clientsFilePath = `clients/assets/${filePath}`;
     try {
       return new Promise((resolve, reject) => {
-        fs.unlink(filePath, (error) => {
-          if (error) {
-            this.logger.error(
-              `deleteFile error: ${inspect({ error }, { depth: null })}`,
-            );
-            reject(error);
+        fs.access(clientsFilePath, fs.constants.F_OK, (err) => {
+          if (err) {
+            console.error(`File ${filePath} does not exist`);
+            resolve();
+          } else {
+            fs.unlink(clientsFilePath, (error) => {
+              if (error) {
+                this.logger.error(
+                  `deleteFile error: ${inspect({ error }, { depth: null })}`,
+                );
+                reject(error);
+              }
+              resolve();
+            });
           }
-          resolve();
         });
       });
     } catch (error) {

@@ -22,10 +22,14 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 
 console.log({ __dirname });
+
+const rootPath = __dirname.includes('src')
+  ? join(__dirname, '../', '../', 'client')
+  : join(__dirname, '../', 'client');
 @Module({
   imports: [
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '../', 'client'),
+      rootPath,
       exclude: ['/api*'],
     }),
     ConfigModule.forRoot({

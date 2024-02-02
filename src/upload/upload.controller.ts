@@ -3,14 +3,12 @@ import {
   Post,
   UseInterceptors,
   UploadedFiles,
-  Body,
 } from '@nestjs/common';
 import { UploadImgDto } from './dto/upload-img.dto';
 import { UploadService } from './upload.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import fileFilter from './functions/file-filter.function';
 import { Multer } from 'multer';
-import { UploadImgFolderDto } from './dto/upload-img-folder.dto';
 import { MAX_UPLOAD_BYTES } from './config/max-upload-bytes.const';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UserRole } from 'src/shared/enums/user-role.enum';
