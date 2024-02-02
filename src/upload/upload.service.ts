@@ -19,7 +19,7 @@ export class UploadService {
     return { img, thumb };
   }
 
-  handleFileUpload(file: Multer.File): Promise<string> {
+  private handleFileUpload(file: Multer.File): Promise<string> {
     return new Promise((resolve, reject) => {
       // Customize the filename logic as needed
       const id = uid();
@@ -40,9 +40,9 @@ export class UploadService {
           throw new BadRequestException(`unsupported format ${file.mimetype}`);
       }
       const filename = `${id}.${extension}`;
-      const resourceDirectory = `client/assets/uploads/`;
+      const resourceDirectory = `../client/assets/uploads/`;
       const resourcePath = `assets/uploads/${filename}`;
-      const fullPath = `client/${resourcePath}`;
+      const fullPath = `../client/${resourcePath}`;
 
       console.log({ filename, resourceDirectory, resourcePath, fullPath });
 
